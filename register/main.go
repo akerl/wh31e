@@ -5,16 +5,18 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/akerl/timber/v2/log"
 	"github.com/akerl/wh31e/config"
 	"github.com/akerl/wh31e/metrics"
 
 	"gopkg.in/mcuadros/go-syslog.v2/format"
 )
 
+var logger = log.NewLogger("wh31e.register")
+
 type message struct {
 	TimeStr      string  `json:"time"`
 	IDInt        int     `json:"id"`
-	ChannelInt   int     `json:"channel"`
 	Battery      int     `json:"battery_ok"`
 	TemperatureC float64 `json:"temperature_C"`
 	Humidity     int     `json:"humidity"`
@@ -24,79 +26,85 @@ type event struct {
 	Time         time.Time
 	ID           string
 	Name         string
-	Channel      string
 	Battery      int
 	TemperatureC float64
 	TemperatureF float64
 	Humidity     int
 }
 
-type counter struct {
-	Time time.Time
-	Name string
-}
-
 // Register defines the shared event tracking state
 type Register struct {
 	SensorNames map[int]string
 	Latest      map[string]event
-	Counters    []counter
-}
-
-func (e *event) Counter() counter {
-	return counter{
-		Time: e.Time,
-		Name: e.Name,
-	}
 }
 
 func (e *event) Tags() map[string]string {
 	return map[string]string{
-		"name":    e.Name,
-		"id":      e.ID,
-		"channel": e.Channel,
+		"name": e.Name,
+		"id":   e.ID,
 	}
 }
 
 // Metrics returns Metric-formatted entries for this event
-func (e *event) Metrics() metrics.MetricFile {
+func (e *event) Metrics() []metrics.Metric {
 	t := e.Tags()
-	return metrics.MetricFile{
+	mf := []metrics.Metric{
 		metrics.Metric{
-			Name:  "wh31e_humidity",
+			Name:  "wh31e_last_updated",
 			Type:  "gauge",
 			Tags:  t,
-			Value: fmt.Sprintf("%d", e.Humidity),
-		},
-		metrics.Metric{
-			Name:  "wh31e_battery",
-			Type:  "gauge",
-			Tags:  t,
-			Value: fmt.Sprintf("%d", e.Battery),
-		},
-		metrics.Metric{
-			Name:  "wh31e_temperature_c",
-			Type:  "gauge",
-			Tags:  t,
-			Value: fmt.Sprintf("%g", e.TemperatureC),
-		},
-		metrics.Metric{
-			Name:  "wh31e_temperature_f",
-			Type:  "gauge",
-			Tags:  t,
-			Value: fmt.Sprintf("%g", e.TemperatureF),
+			Value: fmt.Sprintf("%d", e.Time.Unix()),
 		},
 	}
+	if e.Humidity != 0 {
+		mf = append(
+			mf,
+			metrics.Metric{
+				Name:  "wh31e_humidity",
+				Type:  "gauge",
+				Tags:  t,
+				Value: fmt.Sprintf("%d", e.Humidity),
+			},
+			metrics.Metric{
+				Name:  "wh31e_battery",
+				Type:  "gauge",
+				Tags:  t,
+				Value: fmt.Sprintf("%d", e.Battery),
+			},
+			metrics.Metric{
+				Name:  "wh31e_temperature_c",
+				Type:  "gauge",
+				Tags:  t,
+				Value: fmt.Sprintf("%g", e.TemperatureC),
+			},
+			metrics.Metric{
+				Name:  "wh31e_temperature_f",
+				Type:  "gauge",
+				Tags:  t,
+				Value: fmt.Sprintf("%g", e.TemperatureF),
+			},
+		)
+	}
+	return mf
 }
 
 // NewRegister creates a new Register object from the provided config
 func NewRegister(conf config.Config) *Register {
-	return &Register{
+	r := Register{
 		SensorNames: conf.SensorNames,
+		Latest:      map[string]event{},
 	}
+	for k, v := range r.SensorNames {
+		r.Latest[v] = event{
+			Time: time.Unix(0, 0),
+			ID:   fmt.Sprintf("%d", k),
+			Name: v,
+		}
+	}
+	return &r
 }
 
-func (r *Register) parseChannelName(c int) string {
+func (r *Register) parseSensorName(c int) string {
 	name := r.SensorNames[c]
 	if name == "" {
 		name = fmt.Sprintf("%d", c)
@@ -122,60 +130,14 @@ func (r *Register) LogEvent(log format.LogParts) error {
 	e := event{
 		Time:         t,
 		ID:           fmt.Sprintf("%d", m.IDInt),
-		Name:         r.parseChannelName(m.IDInt),
-		Channel:      fmt.Sprintf("%d", m.ChannelInt),
+		Name:         r.parseSensorName(m.IDInt),
 		Battery:      m.Battery,
 		TemperatureC: m.TemperatureC,
 		TemperatureF: m.TemperatureC*1.8 + 32,
 		Humidity:     m.Humidity,
 	}
-
-	r.prune()
+	logger.InfoMsgf("logging event for %s", e.Name)
 
 	r.Latest[e.Name] = e
-	r.Counters = append(r.Counters, e.Counter())
 	return nil
-}
-
-// CounterMetrics provides Metrics objects for the active counters
-func (r *Register) CounterMetrics() metrics.MetricFile {
-	counts := map[string]int{}
-	for _, v := range r.SensorNames {
-		counts[v] = 0
-	}
-	for _, v := range r.Counters {
-		counts[v.Name]++
-	}
-	mf := metrics.MetricFile{}
-	for k, v := range counts {
-		m := metrics.Metric{
-			Name:  "wh31e_events_last_hour",
-			Type:  "gauge",
-			Tags:  map[string]string{"name": k},
-			Value: fmt.Sprintf("%d", v),
-		}
-		mf = append(mf, m)
-	}
-	return mf
-}
-
-func (r *Register) prune() {
-	var breakPoint int
-	checkPoint := time.Now().Add(time.Hour * -1)
-	stalePoint := time.Now().Add(time.Minute * -5)
-	seen := map[string]struct{}{}
-	for index, val := range r.Counters {
-		if breakPoint == 0 && val.Time.After(checkPoint) {
-			breakPoint = index
-		}
-		if breakPoint != 0 && val.Time.After(stalePoint) {
-			seen[val.Name] = struct{}{}
-		}
-	}
-	r.Counters = r.Counters[0:]
-	for k := range r.Latest {
-		if _, ok := seen[k]; !ok {
-			delete(r.Latest, k)
-		}
-	}
 }

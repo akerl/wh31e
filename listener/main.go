@@ -6,8 +6,11 @@ import (
 	"github.com/akerl/wh31e/config"
 	"github.com/akerl/wh31e/register"
 
+	"github.com/akerl/timber/v2/log"
 	"gopkg.in/mcuadros/go-syslog.v2"
 )
+
+var logger = log.NewLogger("wh31e.listener")
 
 // Listener defines the syslog engine
 type Listener struct {
@@ -45,6 +48,7 @@ func (l *Listener) launchSyslogServer() error {
 	server.SetHandler(handler)
 
 	host := fmt.Sprintf("%s:%d", l.SyslogHost, l.SyslogPort)
+	logger.InfoMsgf("launching syslog listener on %s", host)
 	server.ListenUDP(host)
 
 	return server.Boot()
@@ -52,7 +56,10 @@ func (l *Listener) launchSyslogServer() error {
 
 func (l *Listener) loop() {
 	for log := range l.channel {
+		logger.DebugMsgf("received syslog event: %v+", log)
 		err := l.Register.LogEvent(log)
-		panic(err)
+		if err != nil {
+			panic(err)
+		}
 	}
 }

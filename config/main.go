@@ -3,8 +3,11 @@ package config
 import (
 	"io/ioutil"
 
-	"gopkg.in/yaml.v2"
+	"github.com/akerl/timber/v2/log"
+	"github.com/ghodss/yaml"
 )
+
+var logger = log.NewLogger("wh31e.config")
 
 // DefaultConfigPath defines the default location to load config from
 const DefaultConfigPath = "wh31e.conf"
@@ -25,6 +28,7 @@ func LoadConfig(customPath string) (Config, error) {
 	if path == "" {
 		path = DefaultConfigPath
 	}
+	logger.InfoMsgf("loading config from path: %s", path)
 
 	contents, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -32,5 +36,6 @@ func LoadConfig(customPath string) (Config, error) {
 	}
 
 	err = yaml.Unmarshal(contents, &c)
+	logger.DebugMsgf("loaded config: %v+", c)
 	return c, err
 }
