@@ -1,2 +1,2 @@
-PACKAGE = wh31e_metrics
-VERSION_VAR_PATH = Version
+PACKAGE = wh31e
+VERSION_VAR_PATH = version.Version

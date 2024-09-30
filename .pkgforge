@@ -1,4 +1,4 @@
-name 'wh31e_metrics'
+name 'wh31e'
 org 'akerl'
 
 source(
