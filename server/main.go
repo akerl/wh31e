@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/akerl/wh31e/config"
-	"github.com/akerl/wh31e/metrics"
 	"github.com/akerl/wh31e/register"
 
+	"github.com/akerl/metrics/metrics"
 	"github.com/akerl/timber/v2/log"
 )
 

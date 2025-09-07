@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/akerl/timber/v2/log"
 	"github.com/akerl/wh31e/config"
-	"github.com/akerl/wh31e/metrics"
 
+	"github.com/akerl/metrics/metrics"
+	"github.com/akerl/timber/v2/log"
 	"gopkg.in/mcuadros/go-syslog.v2/format"
 )
 
