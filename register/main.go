@@ -46,9 +46,9 @@ func (e *event) Tags() map[string]string {
 }
 
 // Metrics returns Metric-formatted entries for this event
-func (e *event) Metrics() []metrics.Metric {
+func (e *event) Metrics() metrics.MetricSet {
 	t := e.Tags()
-	mf := []metrics.Metric{
+	ms := metrics.MetricSet{
 		metrics.Metric{
 			Name:  "wh31e_last_updated",
 			Type:  "gauge",
@@ -57,8 +57,8 @@ func (e *event) Metrics() []metrics.Metric {
 		},
 	}
 	if e.Humidity != 0 {
-		mf = append(
-			mf,
+		ms = append(
+			ms,
 			metrics.Metric{
 				Name:  "wh31e_humidity",
 				Type:  "gauge",
@@ -85,7 +85,7 @@ func (e *event) Metrics() []metrics.Metric {
 			},
 		)
 	}
-	return mf
+	return ms
 }
 
 // NewRegister creates a new Register object from the provided config

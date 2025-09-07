@@ -40,15 +40,15 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) handleMetrics(w http.ResponseWriter, _ *http.Request) {
-	mf := metrics.MetricFile{}
+	ms := metrics.MetricSet{}
 	for _, v := range s.Register.Latest {
-		mf.Metrics = append(mf.Metrics, v.Metrics()...)
+		ms = append(ms, v.Metrics()...)
 	}
-	if !mf.Validate() {
+	if !ms.Validate() {
 		logger.InfoMsg("invalid metrics file requested")
 		http.Error(w, "invalid metrics file", http.StatusInternalServerError)
 	} else {
 		logger.InfoMsg("successful metrics request")
-		io.WriteString(w, mf.String())
+		io.WriteString(w, ms.String())
 	}
 }
