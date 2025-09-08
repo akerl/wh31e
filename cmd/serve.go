@@ -3,9 +3,8 @@ package cmd
 import (
 	"github.com/akerl/wh31e/config"
 	"github.com/akerl/wh31e/listener"
-	"github.com/akerl/wh31e/register"
-	"github.com/akerl/wh31e/server"
 
+	"github.com/akerl/metrics/server"
 	"github.com/spf13/cobra"
 )
 
@@ -20,10 +19,10 @@ func serveRunner(_ *cobra.Command, args []string) error {
 		return err
 	}
 
-	reg := register.NewRegister(conf)
+	cache := server.Cache{}
 
-	l := listener.NewListener(conf, reg)
-	s := server.NewServer(conf, reg)
+	l := listener.NewListener(conf, &cache)
+	s := server.NewServer(conf.Port, &cache)
 
 	err = l.RunAsync()
 	if err != nil {
