@@ -148,6 +148,11 @@ func (m message) Metrics(sensorNames map[int]string) (metrics.MetricSet, error) 
 		return metrics.MetricSet{}, err
 	}
 
+	if m.Humidity == 0 {
+		logger.InfoMsgf("recieved null message: %v+", m)
+		return metrics.MetricSet{}, nil
+	}
+
 	tags := m.Tags(sensorNames)
 
 	return metrics.MetricSet{
